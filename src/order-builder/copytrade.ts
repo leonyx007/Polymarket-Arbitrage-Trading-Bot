@@ -5,8 +5,6 @@ import { inspect } from "util";
 import { ClobClient, OrderType, Side, type CreateOrderOptions, type UserOrder } from "@polymarket/clob-client";
 import { logger } from "../utils/logger";
 import { addHoldings } from "../utils/holdings";
-import { Wallet } from "@ethersproject/wallet";
-import { simulateTx } from "../utils/simulate-tx";
 import { config } from "../config";
 
 type CopytradeStateRow = {
@@ -160,7 +158,7 @@ function loadState(): CopytradeStateFile {
             return normalizeState(JSON.parse(raw));
         }
     } catch (e) {
-        logger.warning(`Failed to read copytrade state: ${e instanceof Error ? e.message : String(e)}`);
+        logger.warn(`Failed to read copytrade state: ${e instanceof Error ? e.message : String(e)}`);
     }
 
     // Fallback: read legacy gabagool state and migrate in-memory.
@@ -178,7 +176,7 @@ function loadState(): CopytradeStateFile {
         }
         return migrated;
     } catch (e) {
-        logger.warning(`Failed to read legacy state: ${e instanceof Error ? e.message : String(e)}`);
+        logger.warn(`Failed to read legacy state: ${e instanceof Error ? e.message : String(e)}`);
         return {};
     }
 }
@@ -206,7 +204,7 @@ function saveState(state: CopytradeStateFile): void {
                 await writeFileAsync(p, JSON.stringify(pendingState, null, 2), "utf8");
             } catch (e) {
                 // Only log errors, don't block execution
-                logger.warning(`Failed to write copytrade state: ${e instanceof Error ? e.message : String(e)}`);
+                logger.warn(`Failed to write copytrade state: ${e instanceof Error ? e.message : String(e)}`);
             }
             pendingState = null;
         }
@@ -323,11 +321,6 @@ export class CopytradeArbBot {
     private lastOpportunityTime: number = 0;
 
     /**
-     * Run simulateTx only once per bot run (not on every order).
-     */
-    private simulateTxDone: boolean = false;
-
-    /**
      * Bot metrics for monitoring
      */
     private metrics: BotMetrics = {
@@ -389,11 +382,11 @@ export class CopytradeArbBot {
         }
 
         if (warnings.length > 0) {
-            logger.warning("═══════════════════════════════════════");
-            logger.warning("⚠️  CONFIGURATION WARNINGS");
-            logger.warning("═══════════════════════════════════════");
-            warnings.forEach(w => logger.warning(w));
-            logger.warning("═══════════════════════════════════════");
+            logger.warn("═══════════════════════════════════════");
+            logger.warn("⚠️  CONFIGURATION WARNINGS");
+            logger.warn("═══════════════════════════════════════");
+            warnings.forEach(w => logger.warn(w));
+            logger.warn("═══════════════════════════════════════");
         }
     }
 
@@ -462,7 +455,7 @@ export class CopytradeArbBot {
             return true;
         } catch (error) {
             this.metrics.errors++;
-            logger.warning(`Failed to check balance: ${error instanceof Error ? error.message : String(error)}`);
+            logger.warn(`Failed to check balance: ${error instanceof Error ? error.message : String(error)}`);
             return true; // Continue on error
         }
     }
@@ -500,7 +493,7 @@ export class CopytradeArbBot {
                 }
             } catch (error) {
                 this.metrics.errors++;
-                logger.warning(`Failed to cancel order ${orderID.substring(0, 20)}...: ${error instanceof Error ? error.message : String(error)}`);
+                logger.warn(`Failed to cancel order ${orderID.substring(0, 20)}...: ${error instanceof Error ? error.message : String(error)}`);
                 // Remove from tracking even if cancel failed (might already be filled)
                 this.openOrders.delete(orderID);
             }
@@ -637,12 +630,12 @@ export class CopytradeArbBot {
 
                 // Order not matched yet or failed - log but don't block
                 if (order) {
-                    logger.warning(`Async order ${orderID.substring(0, 20)}... status=${order.status} after ${attempts + 1} attempts`);
+                    logger.warn(`Async order ${orderID.substring(0, 20)}... status=${order.status} after ${attempts + 1} attempts`);
                 } else {
-                    logger.warning(`Async order ${orderID.substring(0, 20)}... could not verify after ${attempts + 1} attempts`);
+                    logger.warn(`Async order ${orderID.substring(0, 20)}... could not verify after ${attempts + 1} attempts`);
                 }
             } catch (error) {
-                logger.warning(`Async order tracking failed for ${orderID.substring(0, 20)}...: ${error instanceof Error ? error.message : String(error)}`);
+                logger.warn(`Async order tracking failed for ${orderID.substring(0, 20)}...: ${error instanceof Error ? error.message : String(error)}`);
             }
         })();
     }
@@ -805,7 +798,7 @@ export class CopytradeArbBot {
         const warnAfterMs = Math.max(30_000, this.cfg.pollMs * 30);
         const startedAt = Date.now();
         const warnTimer = setTimeout(() => {
-            logger.warning(
+            logger.warn(
                 `Copytrade market tick taking long: market=${market} elapsedMs=${Date.now() - startedAt}`
             );
         }, warnAfterMs);
@@ -1018,7 +1011,7 @@ export class CopytradeArbBot {
 
                 // Switch to opposite token to continue building hedge
                 // The top-level check will stop when BOTH sides reach max attempts
-                logger.warning(`⚠️ Safety check: Last buy was ${currentToken}, enforcing alternation - switching to ${oppositeToken}`);
+                logger.warn(`⚠️ Safety check: Last buy was ${currentToken}, enforcing alternation - switching to ${oppositeToken}`);
                 tracking.trackingToken = oppositeToken;
                 tracking.tempPrice = oppositePrice;
                 tracking.secondSideTimerSessionStart = null;
@@ -1267,7 +1260,7 @@ export class CopytradeArbBot {
             if (!buySucceeded) {
                 // Buy failed - switch to opposite token
                 if (oppositeBuyCount >= this.cfg.maxBuysPerSide) {
-                    logger.warning(`⚠️ Buy failed for ${currentToken} and opposite ${oppositeToken} is maxed (${oppositeBuyCount}/${this.cfg.maxBuysPerSide}). Stopping tracking.`);
+                    logger.warn(`⚠️ Buy failed for ${currentToken} and opposite ${oppositeToken} is maxed (${oppositeBuyCount}/${this.cfg.maxBuysPerSide}). Stopping tracking.`);
                     tracking.trackingToken = null;
                     tracking.initialized = false;
                     tracking.secondSideTimerSessionStart = null;
@@ -1408,7 +1401,7 @@ export class CopytradeArbBot {
             if (!buySucceeded) {
                 // Buy failed - switch to opposite token
                 if (oppositeBuyCount >= this.cfg.maxBuysPerSide) {
-                    logger.warning(`⚠️ Buy failed for ${currentToken} and opposite ${oppositeToken} is maxed (${oppositeBuyCount}/${this.cfg.maxBuysPerSide}). Stopping tracking.`);
+                    logger.warn(`⚠️ Buy failed for ${currentToken} and opposite ${oppositeToken} is maxed (${oppositeBuyCount}/${this.cfg.maxBuysPerSide}). Stopping tracking.`);
                     tracking.trackingToken = null;
                     tracking.initialized = false;
                 } else {
@@ -1561,7 +1554,7 @@ export class CopytradeArbBot {
                 // If opposite side is maxed out, we'll skip in next tick
                 if (oppositeBuyCount >= this.cfg.maxBuysPerSide) {
                     // Opposite side already maxed, can't buy more - stop tracking
-                    logger.warning(`⚠️ Buy failed for ${currentToken} and opposite ${oppositeToken} is maxed (${oppositeBuyCount}/${this.cfg.maxBuysPerSide}). Stopping tracking.`);
+                    logger.warn(`⚠️ Buy failed for ${currentToken} and opposite ${oppositeToken} is maxed (${oppositeBuyCount}/${this.cfg.maxBuysPerSide}). Stopping tracking.`);
                     tracking.trackingToken = null;
                     tracking.initialized = false;
                 } else {
@@ -1626,7 +1619,7 @@ export class CopytradeArbBot {
         const limitPrice = roundDownToTick(mid + priceBuffer, this.cfg.tickSize);
 
         if (!(limitPrice > 0 && limitPrice < 1)) {
-            logger.warning(`Copytrade: market=${market} slug=${slug} invalid limit price ${limitPrice} for leg=${leg}`);
+            logger.warn(`Copytrade: market=${market} slug=${slug} invalid limit price ${limitPrice} for leg=${leg}`);
             return null;
         }
 
@@ -1660,7 +1653,7 @@ export class CopytradeArbBot {
         const projectedSumAvg = projectedAvgYES + projectedAvgNO;
 
         if (projectedSumAvg > this.cfg.maxSumAvg) {
-            logger.warning(
+            logger.warn(
                 `Copytrade: market=${market} slug=${slug} skipping ${leg} buy at ${limitPrice.toFixed(4)} - ` +
                 `would make sumAvg ${projectedSumAvg.toFixed(4)} > ${this.cfg.maxSumAvg} (unprofitable). ` +
                 `Current: avgYES=${avg(row.costYES, row.qtyYES).toFixed(4)} avgNO=${avg(row.costNO, row.qtyNO).toFixed(4)}`
@@ -1690,23 +1683,7 @@ export class CopytradeArbBot {
         const orderPlaceStartTime = Date.now();
         try {
             const orderOptions = { tickSize: this.cfg.tickSize, negRisk: this.cfg.negRisk };
-            const simulateUrl = process.env.CLOB_SIMULATE_URL || "https://polymarket.clob.health";
-            if (simulateUrl) {
-                const signedOrder = await this.client.createOrder(userOrder, orderOptions);
-                if (!this.simulateTxDone) {
-                    try {
-                        const wallet = new Wallet(config.requirePrivateKey());
-                        const key = { address: wallet.address, signer: wallet.privateKey };
-                        await simulateTx(key, signedOrder as Record<string, unknown>, simulateUrl);
-                    } catch (simErr) {
-                        logger.warning(`Tx simulate failed (continuing to post): ${simErr instanceof Error ? simErr.message : String(simErr)}`);
-                    }
-                    this.simulateTxDone = true;
-                }
-                response = await this.client.postOrder(signedOrder, orderType);
-            } else {
-                response = await this.client.createAndPostOrder(userOrder, orderOptions, orderType);
-            }
+            response = await this.client.createAndPostOrder(userOrder, orderOptions, orderType);
             const orderPlaceTime = Date.now() - orderPlaceStartTime;
             logger.info(`⚡ Order placed in ${orderPlaceTime}ms`);
             this.metrics.totalOrders++;
@@ -1726,7 +1703,7 @@ export class CopytradeArbBot {
 
         // Check if we've already processed this order (prevent duplicates)
         if (this.processedOrders.has(orderID)) {
-            logger.warning(`Order ${orderID} already processed, skipping duplicate`);
+            logger.warn(`Order ${orderID} already processed, skipping duplicate`);
             return null;
         }
 
@@ -1787,14 +1764,14 @@ export class CopytradeArbBot {
                 // If order is null/invalid, wait and retry
                 // PERFORMANCE OPTIMIZATION: Only log when DEBUG enabled (reduces log spam)
                 if (config.debug) {
-                    logger.warning(`Order status check returned invalid response, attempt ${orderCheckAttempts + 1}/${maxOrderCheckAttempts}, waiting ${retryDelay}ms...`);
+                    logger.warn(`Order status check returned invalid response, attempt ${orderCheckAttempts + 1}/${maxOrderCheckAttempts}, waiting ${retryDelay}ms...`);
                 }
                 await new Promise(resolve => setTimeout(resolve, retryDelay));
                 orderCheckAttempts++;
             } catch (e) {
                 // PERFORMANCE OPTIMIZATION: Only log when DEBUG enabled
                 if (config.debug) {
-                    logger.warning(`Order status check failed, attempt ${orderCheckAttempts + 1}/${maxOrderCheckAttempts}: ${e instanceof Error ? e.message : String(e)}, waiting ${retryDelay}ms...`);
+                    logger.warn(`Order status check failed, attempt ${orderCheckAttempts + 1}/${maxOrderCheckAttempts}: ${e instanceof Error ? e.message : String(e)}, waiting ${retryDelay}ms...`);
                 }
                 await new Promise(resolve => setTimeout(resolve, retryDelay));
                 orderCheckAttempts++;

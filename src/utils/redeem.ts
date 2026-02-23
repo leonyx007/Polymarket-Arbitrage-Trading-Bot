@@ -405,7 +405,7 @@ async function retryWithBackoff<T>(
             
             // Calculate delay with exponential backoff
             const delay = delayMs * Math.pow(2, attempt - 1);
-            logger.warning(`Attempt ${attempt}/${maxRetries} failed: ${errorMsg}. Retrying in ${delay}ms...`);
+            logger.warn(`Attempt ${attempt}/${maxRetries} failed: ${errorMsg}. Retrying in ${delay}ms...`);
             await new Promise(resolve => setTimeout(resolve, delay));
         }
     }
@@ -860,7 +860,7 @@ export async function autoRedeemResolvedMarkets(options: {
                             clearMarketHoldings(conditionId);
                             logger.info(`Cleared holdings record for ${conditionId} from token-holding.json`);
                         } catch (clearError) {
-                            logger.warning(`Failed to clear holdings for ${conditionId}: ${clearError instanceof Error ? clearError.message : String(clearError)}`);
+                            logger.warn(`Failed to clear holdings for ${conditionId}: ${clearError instanceof Error ? clearError.message : String(clearError)}`);
                             // Don't fail the redemption if clearing holdings fails
                         }
                         
@@ -1072,7 +1072,7 @@ export async function getMarketsWithUserPositions(
                 } else {
                     // API says we have positions, but on-chain check shows 0
                     // This shouldn't happen, but log it
-                    logger.warning(`API shows positions for ${conditionId}, but on-chain balance is 0`);
+                    logger.warn(`API shows positions for ${conditionId}, but on-chain balance is 0`);
                 }
             } catch (error) {
                 // Skip if error checking balances
@@ -1265,7 +1265,7 @@ export async function redeemAllWinningMarketsFromAPI(options?: {
                                 clearMarketHoldings(conditionId);
                                 logger.info(`Cleared holdings record for ${conditionId} from token-holding.json`);
                             } catch (clearError) {
-                                logger.warning(`Failed to clear holdings for ${conditionId}: ${clearError instanceof Error ? clearError.message : String(clearError)}`);
+                                logger.warn(`Failed to clear holdings for ${conditionId}: ${clearError instanceof Error ? clearError.message : String(clearError)}`);
                                 // Don't fail the redemption if clearing holdings fails
                             }
                             
@@ -1328,7 +1328,7 @@ export async function redeemAllWinningMarketsFromAPI(options?: {
         } else {
             logger.success(`Successfully redeemed: ${redeemedCount} market(s)`);
             if (failedCount > 0) {
-                logger.warning(`Failed: ${failedCount} market(s)`);
+                logger.warn(`Failed: ${failedCount} market(s)`);
             }
         }
         

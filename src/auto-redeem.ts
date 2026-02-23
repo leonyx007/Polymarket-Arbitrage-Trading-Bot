@@ -68,7 +68,7 @@ async function main() {
                         if (winningHeld.length > 0) {
                             logger.success(`\nYou hold winning tokens! (IndexSets: ${winningHeld.join(", ")})`);
                         } else {
-                            logger.warning("\n⚠️  You don't hold any winning tokens for this market.");
+                            logger.warn("\n⚠️  You don't hold any winning tokens for this market.");
                         }
                     }
                 }
@@ -93,7 +93,7 @@ async function main() {
                 logger.info(`  bun src/auto-redeem.ts --check ${conditionId} --redeem`);
             }
         } else {
-            logger.warning(`❌ Market is NOT resolved`);
+            logger.warn(`❌ Market is NOT resolved`);
             logger.info(`Reason: ${reason}`);
         }
         return;
@@ -136,7 +136,7 @@ async function main() {
         } else {
             logger.success(`Successfully redeemed: ${result.redeemed} market(s)`);
             if (result.failed > 0) {
-                logger.warning(`Failed: ${result.failed} market(s)`);
+                logger.warn(`Failed: ${result.failed} market(s)`);
             }
         }
         
@@ -170,7 +170,7 @@ async function main() {
     const marketCount = Object.keys(holdings).length;
     
     if (marketCount === 0) {
-        logger.warning("No holdings found in token-holding.json. Nothing to redeem.");
+        logger.warn("No holdings found in token-holding.json. Nothing to redeem.");
         logger.info("\nOptions:");
         logger.info("  1. Holdings are tracked automatically when you place orders");
         logger.info("  2. Use --api flag to fetch all markets from Polymarket API instead");
@@ -199,7 +199,7 @@ async function main() {
     } else {
         logger.success(`Successfully redeemed: ${result.redeemed} market(s)`);
         if (result.failed > 0) {
-            logger.warning(`Failed: ${result.failed} market(s)`);
+            logger.warn(`Failed: ${result.failed} market(s)`);
         }
     }
     

@@ -107,14 +107,14 @@ export async function validateBuyOrderBalance(
         const valid = available >= requiredAmount;
 
         if (!valid) {
-            logger.warning("═══════════════════════════════════════");
-            logger.warning("⚠️  INSUFFICIENT BALANCE/ALLOWANCE");
-            logger.warning("═══════════════════════════════════════");
-            logger.warning(`Required: ${requiredAmount.toFixed(6)} USDC`);
-            logger.warning(`Available: ${available.toFixed(6)} USDC`);
-            logger.warning(`Balance: ${balance.toFixed(6)} USDC`);
-            logger.warning(`Allowance: ${allowance.toFixed(6)} USDC`);
-            logger.warning("═══════════════════════════════════════");
+            logger.warn("═══════════════════════════════════════");
+            logger.warn("⚠️  INSUFFICIENT BALANCE/ALLOWANCE");
+            logger.warn("═══════════════════════════════════════");
+            logger.warn(`Required: ${requiredAmount.toFixed(6)} USDC`);
+            logger.warn(`Available: ${available.toFixed(6)} USDC`);
+            logger.warn(`Balance: ${balance.toFixed(6)} USDC`);
+            logger.warn(`Allowance: ${allowance.toFixed(6)} USDC`);
+            logger.warn("═══════════════════════════════════════");
         }
 
         return { valid, available, required: requiredAmount, balance, allowance };
@@ -137,7 +137,7 @@ export async function validateSellOrderBalance(
     const valid = available >= requiredAmount;
 
     if (!valid) {
-        logger.warning(
+        logger.warn(
             `Insufficient token balance: Token=${tokenId.substring(0, 20)}..., Required=${requiredAmount}, Available=${available}`
         );
     }
@@ -207,7 +207,7 @@ export async function waitForMinimumUsdcBalance(
                 return { ok: true, available, balance, allowance };
             }
         } catch (error) {
-            logger.warning(
+            logger.warn(
                 `USDC gate check failed: ${error instanceof Error ? error.message : String(error)}`
             );
         }

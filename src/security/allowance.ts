@@ -116,7 +116,7 @@ export async function approveUSDCAllowance(): Promise<void> {
             gasLimit: 200_000,
         };
     } catch (error) {
-        logger.warning("Could not fetch gas price, using fallback");
+        logger.warn("Could not fetch gas price, using fallback");
         gasOptions = {
             gasPrice: parseUnits("100", "gwei"),
             gasLimit: 200_000,

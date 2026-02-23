@@ -72,10 +72,10 @@ async function main() {
             if (isInsufficientFunds) {
                 logger.error("INSUFFICIENT_FUNDS: Your wallet has no POL (MATIC) for gas.");
                 logger.error("Add POL to your wallet on Polygon to run this bot: https://polygonscan.com/address/YOUR_WALLET");
-                logger.warning("Continuing without allowances - orders may fail until you fund the wallet.");
+                logger.warn("Continuing without allowances - orders may fail until you fund the wallet.");
             } else {
                 logger.error("Failed to approve USDC allowances", error);
-                logger.warning("Continuing without allowances - orders may fail");
+                logger.warn("Continuing without allowances - orders may fail");
             }
         }
 
