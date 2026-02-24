@@ -232,8 +232,6 @@ The bot logs every action to both console and daily log files in `logs/`:
 
 Want a more profitable, private arbitrage trading bot? My private projects deliver higher returns with advanced strategies. Reach out for details.
 
-**Telegram**: [Kei](https://t.me/Kei4650)
-
 ---
 
 **Disclaimer**: Trading prediction markets carries risk. Past performance does not guarantee future results. Always trade with funds you can afford to lose.
