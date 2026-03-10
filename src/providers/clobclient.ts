@@ -5,14 +5,9 @@ import type { ApiKeyCreds } from "@polymarket/clob-client";
 import { Wallet } from "@ethersproject/wallet";
 import { config } from "../config";
 
-// Cache for ClobClient instance to avoid repeated initialization
 let cachedClient: ClobClient | null = null;
 let cachedConfig: { chainId: number; host: string } | null = null;
 
-/**
- * Initialize ClobClient from credentials (cached singleton)
- * Prevents creating multiple ClobClient instances
- */
 export async function getClobClient(): Promise<ClobClient> {
     // Load credentials
     const credentialPath = resolve(process.cwd(), "src/data/credential.json");
@@ -54,9 +49,6 @@ export async function getClobClient(): Promise<ClobClient> {
     return cachedClient;
 }
 
-/**
- * Clear cached ClobClient (useful for testing or re-initialization)
- */
 export function clearClobClientCache(): void {
     cachedClient = null;
     cachedConfig = null;

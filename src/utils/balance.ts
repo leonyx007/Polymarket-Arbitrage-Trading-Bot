@@ -1,10 +1,6 @@
 import { ClobClient, AssetType, type OpenOrder } from "@polymarket/clob-client";
 import { logger } from "./logger";
 
-/**
- * Calculate available balance for placing orders
- * Formula: availableBalance = totalBalance - sum of (orderSize - orderFillAmount) for open orders
- */
 export async function getAvailableBalance(
     client: ClobClient,
     assetType: AssetType,

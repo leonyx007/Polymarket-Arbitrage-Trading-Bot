@@ -8,10 +8,6 @@ import { config } from "./config";
 import { CopytradeArbBot } from "./order-builder/copytrade";
 import { setupConsoleFileLogging } from "./utils/console-file";
 
-// Capture ALL console output (stdout/stderr) into a local file.
-// Configure via env var:
-// - LOG_FILE_PATH="logs/bot-{date}.log" (daily) or "logs/bot.log" (single file)
-// - LOG_DIR="logs" and LOG_FILE_PREFIX="bot" (daily; used if LOG_FILE_PATH not set)
 setupConsoleFileLogging({
     logFilePath: config.logging.logFilePath, // supports "{date}" placeholder
     logDir: config.logging.logDir,

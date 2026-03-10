@@ -2,9 +2,6 @@ import { readFileSync, writeFileSync, existsSync } from "fs";
 import { resolve } from "path";
 import { logger } from "./logger";
 
-/**
- * Holdings structure: market_id (conditionId) -> { token_id: amount }
- */
 export interface TokenHoldings {
     [marketId: string]: {
         [tokenId: string]: number;
@@ -13,9 +10,6 @@ export interface TokenHoldings {
 
 const HOLDINGS_FILE = resolve(process.cwd(), "src/data/token-holding.json");
 
-/**
- * Load holdings from file
- */
 export function loadHoldings(): TokenHoldings {
     if (!existsSync(HOLDINGS_FILE)) {
         return {};
@@ -30,9 +24,6 @@ export function loadHoldings(): TokenHoldings {
     }
 }
 
-/**
- * Save holdings to file
- */
 export function saveHoldings(holdings: TokenHoldings): void {
     try {
         writeFileSync(HOLDINGS_FILE, JSON.stringify(holdings, null, 2));
@@ -41,9 +32,6 @@ export function saveHoldings(holdings: TokenHoldings): void {
     }
 }
 
-/**
- * Add tokens to holdings after a BUY order
- */
 export function addHoldings(marketId: string, tokenId: string, amount: number): void {
     const holdings = loadHoldings();
     
@@ -61,17 +49,11 @@ export function addHoldings(marketId: string, tokenId: string, amount: number): 
     logger.info(`Added ${amount} tokens to holdings: ${marketId} -> ${tokenId}`);
 }
 
-/**
- * Get holdings for a specific token
- */
 export function getHoldings(marketId: string, tokenId: string): number {
     const holdings = loadHoldings();
     return holdings[marketId]?.[tokenId] || 0;
 }
 
-/**
- * Remove tokens from holdings after a SELL order
- */
 export function removeHoldings(marketId: string, tokenId: string, amount: number): void {
     const holdings = loadHoldings();
     
@@ -97,24 +79,15 @@ export function removeHoldings(marketId: string, tokenId: string, amount: number
     logger.info(`Removed ${amount} tokens from holdings: ${marketId} -> ${tokenId} (remaining: ${newAmount})`);
 }
 
-/**
- * Get all holdings for a market
- */
 export function getMarketHoldings(marketId: string): { [tokenId: string]: number } {
     const holdings = loadHoldings();
     return holdings[marketId] || {};
 }
 
-/**
- * Get all holdings (for debugging/viewing)
- */
 export function getAllHoldings(): TokenHoldings {
     return loadHoldings();
 }
 
-/**
- * Clear all holdings for a specific market
- */
 export function clearMarketHoldings(marketId: string): void {
     const holdings = loadHoldings();
     if (holdings[marketId]) {
@@ -126,9 +99,6 @@ export function clearMarketHoldings(marketId: string): void {
     }
 }
 
-/**
- * Clear all holdings (use with caution)
- */
 export function clearHoldings(): void {
     saveHoldings({});
     logger.info("All holdings cleared");

@@ -3,30 +3,13 @@ import path from "path";
 import { logger } from "./logger";
 
 type SetupOptions = {
-    /**
-     * Absolute or relative file path (relative to process.cwd()).
-     * If provided, this will be used as-is (single file, no rotation unless it contains "{date}").
-     * Examples:
-     * - "logs/bot.log"
-     * - "logs/bot-{date}.log"  // daily
-     */
+    
     logFilePath?: string;
-
-    /**
-     * Directory for daily logs (relative to process.cwd()).
-     * Used when logFilePath is not provided.
-     */
+    
     logDir?: string;
 
-    /**
-     * Filename prefix for daily logs when logFilePath is not provided.
-     * Example: "bot" => "bot-YYYY-MM-DD.log"
-     */
     filePrefix?: string;
 
-    /**
-     * If true, use UTC date for log rotation / naming. Default: false (local time).
-     */
     useUtc?: boolean;
 };
 
@@ -35,11 +18,9 @@ function toStringChunk(chunk: any, encoding?: BufferEncoding): string {
     return typeof chunk === "string" ? chunk : String(chunk);
 }
 
-// Strip ANSI escape codes (colors, cursor control, etc) so log files stay clean.
-// Example sequences: \u001b[33m ... \u001b[39m
+
 function stripAnsi(input: string): string {
-    // CSI sequences: ESC [ ... command
-    // OSC sequences: ESC ] ... BEL (or ESC \)
+    
     return input
         .replace(/\u001b\[[0-?]*[ -/]*[@-~]/g, "")
         .replace(/\u001b\][^\u0007]*(\u0007|\u001b\\)/g, "");

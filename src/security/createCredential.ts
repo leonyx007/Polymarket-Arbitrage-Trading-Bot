@@ -1,5 +1,5 @@
 import { ApiKeyCreds, ClobClient, Chain } from "@polymarket/clob-client";
-import { writeFileSync, existsSync, readFileSync } from "fs";
+import { writeFileSync } from "fs";
 import { resolve } from "path";
 import { Wallet } from "@ethersproject/wallet";
 import { logger } from "../utils/logger";
@@ -9,12 +9,6 @@ export async function createCredential(): Promise<ApiKeyCreds | null> {
     const privateKey = config.privateKey;
     if (!privateKey) return (logger.error("PRIVATE_KEY not found"), null);
 
-    // Check if credentials already exist
-    // const credentialPath = resolve(process.cwd(), "src/data/credential.json");
-    // if (existsSync(credentialPath)) {
-    //     logger.info("Credentials already exist. Returning existing credentials.");
-    //     return JSON.parse(readFileSync(credentialPath, "utf-8"));
-    // }
 
     try {
         const wallet = new Wallet(privateKey);
