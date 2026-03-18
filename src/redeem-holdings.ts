@@ -1,14 +1,3 @@
-/**
- * Standalone redemption runner (does NOT start the trading bot).
- *
- * Uses `src/data/token-holding.json` (written by the bot) and redeems any markets that are resolved.
- *
- * Usage:
- *   ts-node src/redeem-holdings.ts
- *   ts-node src/redeem-holdings.ts --dry-run
- *   ts-node src/redeem-holdings.ts --loop --interval-ms 30000
- */
-
 import { autoRedeemResolvedMarkets, checkConditionResolution } from "./utils/redeem";
 import { logger } from "./utils/logger";
 import { clearMarketHoldings } from "./utils/holdings";

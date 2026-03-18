@@ -15,12 +15,6 @@ export function parseTradeSide(side: string): Side {
     throw new Error(`Invalid trade side: ${side}`);
 }
 
-/**
- * Calculate the amount for a market order based on trade data
- * 
- * For BUY orders: amount is in USDC (price * size)
- * For SELL orders: amount is in shares (size)
- */
 export function calculateMarketOrderAmount(
     trade: TradePayload,
     sizeMultiplier: number = 1.0,

@@ -1,20 +1,3 @@
-#!/usr/bin/env bun
-/**
- * Automated redemption script for resolved Polymarket markets
- * 
- * This script:
- * 1. Checks all markets in your holdings
- * 2. Identifies which markets are resolved
- * 3. Automatically redeems resolved markets
- * 
- * Usage:
- *   bun src/auto-redeem.ts                    # Check and redeem all resolved markets (from holdings file)
- *   bun src/auto-redeem.ts --api               # Fetch all markets from API and redeem winning positions
- *   bun src/auto-redeem.ts --dry-run          # Check but don't redeem (preview only)
- *   bun src/auto-redeem.ts --clear-holdings   # Clear holdings after successful redemption
- *   bun src/auto-redeem.ts --check <conditionId>  # Check if a specific market is resolved
- */
-
 import { 
     autoRedeemResolvedMarkets, 
     isMarketResolved, 

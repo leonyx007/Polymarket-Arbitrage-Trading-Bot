@@ -1,14 +1,3 @@
-#!/usr/bin/env bun
-/**
- * Standalone script to redeem positions for resolved markets
- * 
- * Usage:
- *   bun src/redeem.ts <conditionId> [indexSets...]
- *   bun src/redeem.ts 0x5f65177b394277fd294cd75650044e32ba009a95022d88a0c1d565897d72f8f1 1 2
- * 
- * Or set CONDITION_ID and INDEX_SETS in .env file
- */
-
 import { redeemPositions, redeemMarket } from "./utils/redeem";
 import { getAllHoldings, getMarketHoldings } from "./utils/holdings";
 import { logger } from "./utils/logger";

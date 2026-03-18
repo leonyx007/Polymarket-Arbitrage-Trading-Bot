@@ -2,13 +2,18 @@
 
 ![Polymarket Arbitrage Bot Banner](image/banner.jpg)
 
-Fully automated arbitrage bot that captures guaranteed profit from Polymarket's 15-minute Up/Down prediction markets. It buys both YES and NO sides at a combined cost below $1.00, then collects $1.00 when the market resolves — pocketing the spread every 15 minutes.
+Fully automated arbitrage bot for Polymarket 15-minute Up/Down markets. It attempts to buy both YES and NO sides at a combined cost below $1.00 and capture the spread at resolution. The edge comes from fast execution, strict entry filters, and disciplined risk controls.
 
-## How It Makes Money
+## Strategy Overview (Detailed)
 
-Every 15 minutes, Polymarket opens binary markets like *"Will BTC go Up or Down?"*. Each market has two tokens — YES and NO — that each resolve to exactly **$1.00** or **$0.00**.
+Every 15 minutes, Polymarket opens binary markets like *"Will BTC go Up or Down?"*. Each market has two tokens — YES and NO — and one side eventually settles at **$1.00** while the other settles at **$0.00**.
 
-The bot exploits a simple math fact: if you buy YES at $0.47 and NO at $0.47, you spend **$0.94** total. One side always wins and pays **$1.00**. That's **$0.06 profit per share, risk-free**.
+The bot's core setup is a two-leg hedge:
+- Buy one side (YES or NO) when the price is temporarily cheap.
+- Buy the opposite side using a dynamic threshold derived from the first fill.
+- Only complete the hedge if expected total cost remains below a configured cap.
+
+If both sides are acquired efficiently, payout math is straightforward:
 
 ```
 Buy 5 YES shares @ $0.47  =  $2.35
@@ -16,10 +21,54 @@ Buy 5 NO  shares @ $0.47  =  $2.35
                      Total =  $4.70
 
 Market resolves → winning side pays $1.00 × 5 = $5.00
-Profit = $5.00 − $4.70 = $0.30 per cycle (6.4% return in 15 min)
+Gross edge = $5.00 − $4.70 = $0.30 per cycle
+Net edge = Gross edge − fees − slippage − missed-leg risk
 ```
 
-The bot runs 24/7, executing this strategy every 15 minutes across multiple markets (BTC, ETH, SOL, XRP).
+In practice, this is **not guaranteed risk-free**. Real outcomes depend on execution quality, liquidity, fee model, and whether both legs fill at acceptable prices.
+
+### What "Correct Arbitrage" Means in This Bot
+
+The strategy is only valid when all of these are true:
+- Combined average entry of YES + NO is below `TRADE_MAX_SUM_AVG` (default `0.99`).
+- Position size stays small enough for top-of-book liquidity.
+- Second leg is completed quickly after first-leg fill.
+- The bot skips setups where spread is too thin after buffers/fees.
+- Stale or partial orders are cleaned fast to avoid directional exposure.
+
+### Step-by-Step Trade Lifecycle
+
+1. **Market Scan**
+   - Poll eligible markets (`TRADE_MARKETS`) and read midpoint/near-book prices.
+   - Track local lows/highs per side during each 15-minute round.
+
+2. **First-Leg Entry**
+   - Enter first side when one trigger confirms an edge (reversal, depth discount, or timed threshold logic).
+   - Use configured price buffer / order type to improve fill probability.
+
+3. **Second-Leg Completion (Hedge)**
+   - Compute dynamic threshold from first fill:
+     - `secondSideThreshold = (1 - firstBuyPrice) + TRADE_DYNAMIC_THRESHOLD_BOOST`
+   - Buy opposite side only if total blended cost remains inside cap.
+
+4. **Validation and Safeguards**
+   - Enforce max buys per side and minimum balance checks.
+   - Skip entries when opportunity quality degrades (spread collapse, stale quotes, high combined average).
+
+5. **Resolution and Redemption**
+   - Hold hedged positions to market resolution.
+   - Redeem winning shares and track realized PnL over repeated cycles.
+
+### Practical Risk Model
+
+This bot reduces risk, but does not eliminate it:
+- **Execution risk**: first leg fills, second leg slips away.
+- **Liquidity risk**: quoted prices may not support your size.
+- **Fee drag**: small spreads can disappear after costs.
+- **Operational risk**: API/network interruptions during fast windows.
+- **Market mechanics risk**: settlement timing, redemption latency, and edge-case market behavior.
+
+Use conservative sizing first, validate live fill quality, and scale only after stable net results.
 
 ## Supported Markets
 
@@ -27,13 +76,13 @@ This version of the bot is configured for **BTC, ETH, and SOL** 15-minute Up/Dow
 
 ## Features
 
-- **Guaranteed Profit** — Both sides of a binary market are purchased; one always wins
+- **Two-Leg Hedging Engine** — Buys both sides only when combined pricing stays inside edge constraints
 - **Sub-second Execution** — 50ms polling loop with fire-and-forget order placement
-- **Smart Entry Timing** — Three independent buy triggers (reversal, depth discount, time-based)
+- **Smart Entry Timing** — Three buy triggers (reversal, depth discount, time-based)
 - **Adaptive Polling** — Speeds up to 100ms when opportunities are detected, slows to 2s when idle
 - **Dynamic Thresholds** — Automatically adjusts second-side entry based on first-side fill price
 - **State Persistence** — Resumes mid-hedge after restarts without losing position tracking
-- **Risk Guards** — Max cost cap (sumAvg < $0.99), minimum balance check, stale order cleanup
+- **Risk Guards** — Max cost cap (`sumAvg < 0.99`), minimum balance check, stale order cleanup
 - **Full Logging** — Every trade, price tick, and decision logged to daily rotating files
 
 ## Quick Start
@@ -48,7 +97,7 @@ This version of the bot is configured for **BTC, ETH, and SOL** 15-minute Up/Dow
 
 ```bash
 git clone <repository-url>
-cd polymarket-trading-bot
+cd Polymarket-Arbitrage-Trading-Bot
 npm install
 ```
 
@@ -145,31 +194,31 @@ The bot will:
   :15 ── Market resolves → $1.00 payout ────────
 ```
 
-### Three Buy Triggers
+### Three Buy Triggers (Entry Quality Filters)
 
-The bot uses three independent triggers. Whichever fires first executes the buy:
+The bot uses three independent triggers. Whichever validates first can execute the buy:
 
 **1. Reversal Detection**
-Price dropped to a local minimum, then bounced back up by `REVERSAL_DELTA` ($0.02). This confirms the bottom and buys on the way back up.
+Price drops to a local minimum, then bounces by `REVERSAL_DELTA` (default `$0.02`). This reduces the chance of catching a falling knife.
 
 **2. Depth Discount**
-Price fell more than `DEPTH_BUY_DISCOUNT_PERCENT` (2%) below the tracked low. This catches fast crashes where waiting for a reversal would miss the opportunity.
+Price falls more than `TRADE_DEPTH_BUY_DISCOUNT_PERCENT` (default `2%`) relative to tracked levels. This captures sharp dislocations where reversal confirmation may be too late.
 
 **3. Time Threshold (second side only)**
-After buying one side, if the opposite side stays below its dynamic threshold for 200ms, buy immediately. Prevents missing the second side during slow price movement.
+After buying one side, if the opposite side remains below dynamic threshold for a short confirmation window, buy to complete hedge. This prevents long single-leg exposure.
 
 ### Second Side Entry
 
 After the first buy, the bot calculates a dynamic threshold for the opposite side:
 
 ```
-secondSideThreshold = (1 - firstBuyPrice) + dynamicThresholdBoost
+secondSideThreshold = (1 - firstBuyPrice) + TRADE_DYNAMIC_THRESHOLD_BOOST
 
 Example: Bought YES at $0.47
   → Buy NO when price ≤ 1 - 0.47 + 0.04 = $0.57
 ```
 
-This ensures the combined cost stays well below $1.00.
+This aims to keep combined cost inside profitable range while still prioritizing fast hedge completion.
 
 ### Profit Protection
 
@@ -179,7 +228,7 @@ Before every buy, the bot checks:
 avgPriceYES + avgPriceNO < TRADE_MAX_SUM_AVG ($0.99)
 ```
 
-If the combined average would exceed $0.99, the buy is skipped — there's no profit margin left.
+If the combined average would exceed `$0.99`, the buy is skipped because expected net edge is likely gone.
 
 ## Project Structure
 
