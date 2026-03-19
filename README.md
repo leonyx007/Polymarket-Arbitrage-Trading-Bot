@@ -1,97 +1,96 @@
-# Polymarket Arbitrage Bot (BTC / ETH / SOL Price Market Arbitrage Bot)
+# Polymarket Arbitrage Bot (15m Up/Down Hedged Strategy)
 
 ![Polymarket Arbitrage Bot Banner](image/banner.jpg)
 
-Fully automated arbitrage bot for Polymarket 15-minute Up/Down markets. It attempts to buy both YES and NO sides at a combined cost below $1.00 and capture the spread at resolution. The edge comes from fast execution, strict entry filters, and disciplined risk controls.
+This project runs a **hedged mean-reversion/arbitrage strategy** on Polymarket 15-minute Up/Down markets (BTC/ETH/SOL by default).  
+It attempts to buy both YES and NO at a combined average cost below payout value.
 
-## Strategy Overview (Detailed)
+## Strategy Overview (Correct Model)
 
-Every 15 minutes, Polymarket opens binary markets like *"Will BTC go Up or Down?"*. Each market has two tokens — YES and NO — and one side eventually settles at **$1.00** while the other settles at **$0.00**.
+Each 15-minute market has two outcomes:
 
-The bot's core setup is a two-leg hedge:
-- Buy one side (YES or NO) when the price is temporarily cheap.
-- Buy the opposite side using a dynamic threshold derived from the first fill.
-- Only complete the hedge if expected total cost remains below a configured cap.
+- `YES` (e.g. "Up")
+- `NO` (e.g. "Down")
 
-If both sides are acquired efficiently, payout math is straightforward:
+At resolution, one side settles to `$1.00` and the other to `$0.00`.
 
-```
-Buy 5 YES shares @ $0.47  =  $2.35
-Buy 5 NO  shares @ $0.47  =  $2.35
-                     Total =  $4.70
+If your average fill prices satisfy:
 
-Market resolves → winning side pays $1.00 × 5 = $5.00
-Gross edge = $5.00 − $4.70 = $0.30 per cycle
-Net edge = Gross edge − fees − slippage − missed-leg risk
-```
+`avgYES + avgNO < 1.00`
 
-In practice, this is **not guaranteed risk-free**. Real outcomes depend on execution quality, liquidity, fee model, and whether both legs fill at acceptable prices.
+then the position is economically favorable before fees/slippage.  
+This bot targets that spread by entering one side, then quickly hedging the opposite side.
 
-### What "Correct Arbitrage" Means in This Bot
+### Important Reality Check
 
-The strategy is only valid when all of these are true:
-- Combined average entry of YES + NO is below `TRADE_MAX_SUM_AVG` (default `0.99`).
-- Position size stays small enough for top-of-book liquidity.
-- Second leg is completed quickly after first-leg fill.
-- The bot skips setups where spread is too thin after buffers/fees.
-- Stale or partial orders are cleaned fast to avoid directional exposure.
+This is **not guaranteed profit** in live markets. Real-world risks include:
 
-### Step-by-Step Trade Lifecycle
+- missed or partial fills
+- stale mid-prices vs executable prices
+- spread widening while hedging second side
+- order status lag in fire-and-forget mode
+- fees, infra latency, and API/rpc interruptions
 
-1. **Market Scan**
-   - Poll eligible markets (`TRADE_MARKETS`) and read midpoint/near-book prices.
-   - Track local lows/highs per side during each 15-minute round.
+The code includes controls to reduce these risks, but cannot remove them entirely.
 
-2. **First-Leg Entry**
-   - Enter first side when one trigger confirms an edge (reversal, depth discount, or timed threshold logic).
-   - Use configured price buffer / order type to improve fill probability.
+---
 
-3. **Second-Leg Completion (Hedge)**
-   - Compute dynamic threshold from first fill:
-     - `secondSideThreshold = (1 - firstBuyPrice) + TRADE_DYNAMIC_THRESHOLD_BOOST`
-   - Buy opposite side only if total blended cost remains inside cap.
+## Core Trading Logic
 
-4. **Validation and Safeguards**
-   - Enforce max buys per side and minimum balance checks.
-   - Skip entries when opportunity quality degrades (spread collapse, stale quotes, high combined average).
+### 1) 15-minute slug tracking
 
-5. **Resolution and Redemption**
-   - Hold hedged positions to market resolution.
-   - Redeem winning shares and track realized PnL over repeated cycles.
+For each configured market symbol (`btc`, `eth`, `sol`), the bot constructs the current 15m slug and fetches token IDs from Gamma.  
+When the slug rolls, tracking resets for the new cycle.
 
-### Practical Risk Model
+### 2) Flexible first entry, strict alternation after
 
-This bot reduces risk, but does not eliminate it:
-- **Execution risk**: first leg fills, second leg slips away.
-- **Liquidity risk**: quoted prices may not support your size.
-- **Fee drag**: small spreads can disappear after costs.
-- **Operational risk**: API/network interruptions during fast windows.
-- **Market mechanics risk**: settlement timing, redemption latency, and edge-case market behavior.
+On a fresh hedge:
 
-Use conservative sizing first, validate live fill quality, and scale only after stable net results.
+- if YES or NO is below `TRADE_THRESHOLD`, the bot can start on that side (flexible entry)
 
-## Supported Markets
+After first successful buy:
 
-This version of the bot is configured for **BTC, ETH, and SOL** 15-minute Up/Down markets on Polymarket.
+- it enforces alternating sides (`YES -> NO -> YES ...`) to maintain hedge balance
 
-## Features
+### 3) Three buy triggers (first trigger wins)
 
-- **Two-Leg Hedging Engine** — Buys both sides only when combined pricing stays inside edge constraints
-- **Sub-second Execution** — 50ms polling loop with fire-and-forget order placement
-- **Smart Entry Timing** — Three buy triggers (reversal, depth discount, time-based)
-- **Adaptive Polling** — Speeds up to 100ms when opportunities are detected, slows to 2s when idle
-- **Dynamic Thresholds** — Automatically adjusts second-side entry based on first-side fill price
-- **State Persistence** — Resumes mid-hedge after restarts without losing position tracking
-- **Risk Guards** — Max cost cap (`sumAvg < 0.99`), minimum balance check, stale order cleanup
-- **Full Logging** — Every trade, price tick, and decision logged to daily rotating files
+The currently tracked side can trigger a buy by:
+
+1. **Reversal Trigger**  
+   Price rebounds from tracked low by `REVERSAL_DELTA`.
+
+2. **Depth Discount Trigger**  
+   Price drops deeply below tracked low by `TRADE_DEPTH_BUY_DISCOUNT_PERCENT`.
+
+3. **Second-side Time Trigger**  
+   For opposite leg only: if price stays below dynamic threshold for `TRADE_SECOND_SIDE_TIME_THRESHOLD_MS`, buy without waiting for reversal.
+
+### 4) Dynamic second-leg threshold
+
+After a buy, next-side threshold is computed from filled price:
+
+`dynamicThreshold = 1 - firstFillPrice + TRADE_DYNAMIC_THRESHOLD_BOOST`
+
+This makes second-side acquisition more aggressive so the hedge completes quickly.
+
+### 5) Profitability and safety guards
+
+- projected `sumAvg` is compared against `TRADE_MAX_SUM_AVG`
+- minimum balance checks and optional drawdown stop
+- stale order cleanup by age
+- persistent state (`src/data/copytrade-state.json`) for resume/restart behavior
+
+---
 
 ## Quick Start
 
 ### Prerequisites
 
-- Node.js 18+ with `ts-node`
-- A Polygon wallet funded with USDC
-- Polymarket API credentials (auto-generated on first run)
+- Node.js 18+
+- Polygon wallet with:
+  - USDC (for positions)
+  - POL/MATIC (for gas)
+- Polymarket API credentials (auto-created on first run)
 
 ### Install
 
@@ -103,15 +102,14 @@ npm install
 
 ### Configure
 
-Copy the example environment file and set your private key:
-
 ```bash
 cp .env.example .env
 ```
 
+Minimum required:
+
 ```env
 PRIVATE_KEY=your_polygon_wallet_private_key
-
 TRADE_MARKETS=btc,eth,sol
 TRADE_THRESHOLD=0.47
 TRADE_SHARES=5
@@ -124,175 +122,158 @@ MAX_BUYS_PER_SIDE=1
 npm start
 ```
 
-The bot will:
-1. Generate API credentials (first run only)
-2. Approve USDC allowances on Polymarket contracts
-3. Wait until your wallet has at least $1 USDC available
-4. Begin the arbitrage loop
+Startup flow:
 
-## Configuration Reference
+1. Create/load API credentials
+2. Approve USDC allowances
+3. Sync allowance with CLOB API
+4. Wait for minimum USDC availability
+5. Start continuous per-market strategy loop
 
-### Core Settings
+---
 
-| Variable | Default | Description |
-|---|---|---|
-| `PRIVATE_KEY` | *required* | Polygon wallet private key |
-| `TRADE_MARKETS` | `btc,eth,sol` | Markets to trade (comma-separated: `btc,eth,sol`) |
-| `TRADE_THRESHOLD` | `0.47` | Entry price — buy when a token drops below this |
-| `TRADE_SHARES` | `5` | Number of shares per buy |
-| `MAX_BUYS_PER_SIDE` | `1` | Maximum buys per side per 15m cycle |
-| `TRADE_MAX_SUM_AVG` | `0.99` | Max combined avg price (above this = no profit) |
-| `TRADE_TICK_SIZE` | `0.01` | Price precision for orders |
+## Recommended Strategy Parameters
 
-### Speed Tuning
+These are practical baseline values for this codebase:
 
-| Variable | Default | Description |
-|---|---|---|
-| `TRADE_POLL_MS` | `50` | Main loop interval (milliseconds) |
-| `TRADE_MIN_POLL_MS` | `100` | Fastest adaptive poll rate |
-| `TRADE_MAX_POLL_MS` | `2000` | Slowest adaptive poll rate |
-| `TRADE_FIRE_AND_FORGET` | `true` | Place orders without waiting for confirmation |
-| `TRADE_PRICE_BUFFER` | `0.05` | Cents above midpoint to ensure fill |
-| `TRADE_USE_FAK` | `true` | Fill-and-Kill orders for instant execution |
-
-### Entry Triggers
-
-| Variable | Default | Description |
-|---|---|---|
-| `REVERSAL_DELTA` | `0.02` | Price bounce from bottom to trigger buy |
-| `TRADE_DEPTH_BUY_DISCOUNT_PERCENT` | `0.02` | Buy if price drops this % below tracked low |
-| `TRADE_SECOND_SIDE_BUFFER` | `0.003` | Buffer for opposite side entry |
-| `TRADE_DYNAMIC_THRESHOLD_BOOST` | `0.04` | Extra cents added to second-side threshold |
-
-### Timing
-
-| Variable | Default | Description |
-|---|---|---|
-| `TRADE_WAIT_FOR_NEXT_MARKET_START` | `false` | Wait for next 15m boundary before starting |
-| `TRADE_ORDER_CHECK_DELAY_MS` | `100` | Delay before first order status check |
-| `TRADE_ORDER_RETRY_DELAY_MS` | `300` | Delay between order status retries |
-| `TRADE_ORDER_MAX_ATTEMPTS` | `2` | Max retries for order confirmation |
-
-## Trading Logic
-
-### The 15-Minute Cycle
-
-```
-:00 ──── Market opens ─────────────────────── :15
-  │                                              │
-  │  Poll midpoint prices every 50ms             │
-  │  Wait for YES or NO to drop below $0.47      │
-  │                                              │
-  │  Token drops → start tracking lowest price   │
-  │                                              │
-  │  Trigger fires → BUY first side              │
-  │  Switch to opposite side                     │
-  │  Trigger fires → BUY second side             │
-  │                                              │
-  │  ✓ Hedge complete — wait for resolution      │
-  │                                              │
-  :15 ── Market resolves → $1.00 payout ────────
+```env
+TRADE_THRESHOLD=0.47
+REVERSAL_DELTA=0.02
+TRADE_DEPTH_BUY_DISCOUNT_PERCENT=0.02
+TRADE_DYNAMIC_THRESHOLD_BOOST=0.04
+TRADE_SECOND_SIDE_TIME_THRESHOLD_MS=200
+TRADE_SECOND_SIDE_BUFFER=0.003
+TRADE_MAX_SUM_AVG=0.98
+TRADE_SHARES=5
+MAX_BUYS_PER_SIDE=1
+TRADE_FIRE_AND_FORGET=true
+TRADE_ADAPTIVE_POLLING=true
+TRADE_MIN_POLL_MS=100
+TRADE_MAX_POLL_MS=2000
 ```
 
-### Three Buy Triggers (Entry Quality Filters)
+Notes:
 
-The bot uses three independent triggers. Whichever validates first can execute the buy:
+- Raise `TRADE_THRESHOLD` (e.g. 0.48-0.49) for more fills but lower edge.
+- Lower `TRADE_MAX_SUM_AVG` for stricter quality but fewer trades.
+- If execution is unstable, try `TRADE_FIRE_AND_FORGET=false` for confirmation-based flow.
 
-**1. Reversal Detection**
-Price drops to a local minimum, then bounces by `REVERSAL_DELTA` (default `$0.02`). This reduces the chance of catching a falling knife.
+---
 
-**2. Depth Discount**
-Price falls more than `TRADE_DEPTH_BUY_DISCOUNT_PERCENT` (default `2%`) relative to tracked levels. This captures sharp dislocations where reversal confirmation may be too late.
+## Full Configuration Reference
 
-**3. Time Threshold (second side only)**
-After buying one side, if the opposite side remains below dynamic threshold for a short confirmation window, buy to complete hedge. This prevents long single-leg exposure.
+### Core
 
-### Second Side Entry
+| Variable | Typical | Description |
+|---|---:|---|
+| `PRIVATE_KEY` | required | Polygon wallet private key |
+| `TRADE_MARKETS` | `btc,eth,sol` | Comma-separated symbols to trade |
+| `TRADE_THRESHOLD` | `0.47` | Entry threshold for first-side tracking |
+| `TRADE_SHARES` | `5` | Shares requested per order (auto-adjusts if order value < $1) |
+| `MAX_BUYS_PER_SIDE` | `1` | Maximum attempts per side per 15m cycle |
+| `TRADE_MAX_SUM_AVG` | `0.98` | Max allowed combined average price guard |
+| `TRADE_TICK_SIZE` | `0.01` | Order price tick size |
+| `TRADE_NEG_RISK` | `false` | Neg-risk mode toggle for order options |
 
-After the first buy, the bot calculates a dynamic threshold for the opposite side:
+### Entry + Hedging
 
-```
-secondSideThreshold = (1 - firstBuyPrice) + TRADE_DYNAMIC_THRESHOLD_BOOST
+| Variable | Typical | Description |
+|---|---:|---|
+| `REVERSAL_DELTA` | `0.02` | Reversal amount from low to trigger buy |
+| `TRADE_DEPTH_BUY_DISCOUNT_PERCENT` | `0.02` | Deep drop trigger (% below tracked low) |
+| `TRADE_DYNAMIC_THRESHOLD_BOOST` | `0.04` | Boost added to `1 - firstFillPrice` |
+| `TRADE_SECOND_SIDE_BUFFER` | `0.003` | Buffer used for immediate opposite-side decisioning |
+| `TRADE_SECOND_SIDE_TIME_THRESHOLD_MS` | `200` | Continuous time below threshold before second-leg time trigger |
 
-Example: Bought YES at $0.47
-  → Buy NO when price ≤ 1 - 0.47 + 0.04 = $0.57
-```
+### Speed + Execution
 
-This aims to keep combined cost inside profitable range while still prioritizing fast hedge completion.
+| Variable | Typical | Description |
+|---|---:|---|
+| `TRADE_POLL_MS` | `50` | Base polling interval |
+| `TRADE_ADAPTIVE_POLLING` | `true` | Dynamic poll speed based on activity |
+| `TRADE_MIN_POLL_MS` | `100` | Fastest adaptive polling |
+| `TRADE_MAX_POLL_MS` | `2000` | Slowest adaptive polling |
+| `TRADE_FIRE_AND_FORGET` | `true` | Do not block on order confirmation |
+| `TRADE_PRICE_BUFFER` | `0.05` | Limit order buffer above midpoint |
+| `TRADE_DYNAMIC_PRICE_BUFFER` | `true` | Increases buffer as sumAvg risk rises |
 
-### Profit Protection
+### Safety / Ops
 
-Before every buy, the bot checks:
+| Variable | Typical | Description |
+|---|---:|---|
+| `TRADE_MIN_BALANCE_USDC` | `2` | Stop when available balance drops below this |
+| `TRADE_MAX_DRAWDOWN_PERCENT` | `0` | Optional drawdown stop (`0` disables) |
+| `TRADE_MAX_ORDER_AGE_MS` | `30000` | Cancel tracked stale orders after this age |
+| `TRADE_WAIT_FOR_NEXT_MARKET_START` | `false` | Wait for next 15m boundary before run |
+| `TRADE_ORDER_CHECK_DELAY_MS` | `100` | Initial order status check delay |
+| `TRADE_ORDER_RETRY_DELAY_MS` | `300` | Retry delay for status polling |
+| `TRADE_ORDER_MAX_ATTEMPTS` | `2` | Maximum order status check attempts |
 
-```
-avgPriceYES + avgPriceNO < TRADE_MAX_SUM_AVG ($0.99)
-```
+---
 
-If the combined average would exceed `$0.99`, the buy is skipped because expected net edge is likely gone.
+## Strategy Walkthrough (Example)
+
+Suppose:
+
+- first leg filled at `0.46`
+- `TRADE_DYNAMIC_THRESHOLD_BOOST=0.04`
+
+Then:
+
+- second-leg threshold target = `1 - 0.46 + 0.04 = 0.58`
+
+If opposite side can be acquired around `0.52`, combined average can remain below 1.00:
+
+- `0.46 + 0.52 = 0.98`
+
+That leaves gross edge before fees/slippage.
+
+---
 
 ## Project Structure
 
-```
-├── src/
-│   ├── index.ts               # Entry point — startup sequence
-│   ├── config/index.ts        # Environment config loader
-│   ├── order-builder/
-│   │   └── copytrade.ts       # Core arbitrage engine (CopytradeArbBot)
-│   ├── providers/
-│   │   └── clobclient.ts      # Polymarket CLOB API client
-│   ├── security/
-│   │   ├── allowance.ts       # USDC approval management
-│   │   └── createCredential.ts
-│   ├── utils/
-│   │   ├── balance.ts         # Wallet balance polling
-│   │   ├── holdings.ts        # Token position tracking
-│   │   ├── logger.ts          # Colored console logger
-│   │   └── console-file.ts    # File logging (daily rotation)
-│   └── data/
-│       ├── copytrade-state.json  # Persistent hedge state
-│       └── token-holding.json    # Token position database
-├── .env
-├── package.json
-└── tsconfig.json
+```text
+src/
+  index.ts                    # Startup sequence
+  config/index.ts             # Env/config parser
+  order-builder/copytrade.ts  # Main strategy engine (CopytradeArbBot)
+  providers/clobclient.ts     # CLOB client bootstrap
+  security/allowance.ts        # USDC allowance + sync
+  security/createCredential.ts # API credential bootstrap
+  utils/balance.ts             # Balance checks / wait gates
+  utils/holdings.ts            # Position persistence
+  utils/console-file.ts        # Daily file logging
+  data/copytrade-state.json    # Persistent strategy state
 ```
 
-## Monitoring
-
-The bot logs every action to both console and daily log files in `logs/`:
-
-```
-[INFO]  Starting the bot...
-[INFO]  Credentials ready
-[INFO]  Approving USDC allowances to Polymarket contracts...
-[OK]    Wallet is funded
-[INFO]  btc | YES=$0.52 NO=$0.48 — tracking NO (below $0.47)
-[INFO]  btc | NO dropped to $0.44 (new low)
-[INFO]  btc | REVERSAL triggered: NO bounced $0.02 from low → BUY
-[OK]    btc | Bought 5 NO @ $0.46 — switching to YES side
-[INFO]  btc | YES=$0.50 — below dynamic threshold $0.58
-[OK]    btc | Bought 5 YES @ $0.50 — HEDGE COMPLETE
-[INFO]  btc | Cost: $0.96/share — Guaranteed profit: $0.04 × 5 = $0.20
-```
-
-## Arbitrage Results
-
-Sample arbitrage outcome from a live trading cycle:
-
-![Arbitrage Result](image/result.png)
+---
 
 ## Scripts
 
 | Command | Description |
 |---|---|
-| `npm start` | Start the arbitrage bot |
-| `npm run redeem` | Manually redeem a resolved market |
-| `npm run redeem:holdings` | Auto-redeem all resolved positions |
-| `npm run balance:log` | Log current wallet balances |
-
-## Contact
-
-Want a more profitable, private arbitrage trading bot? My private projects deliver higher returns with advanced strategies. Reach out for details.
+| `npm start` | Start bot |
+| `npm run redeem` | Redeem by explicit condition/index sets |
+| `npm run redeem:holdings` | Redeem using tracked holdings |
+| `npm run balance:log` | Print wallet/CLOB balances |
 
 ---
 
-**Disclaimer**: Trading prediction markets carries risk. Past performance does not guarantee future results. Always trade with funds you can afford to lose.
+## Monitoring and Logs
+
+The bot writes to console and rotating files under `logs/` (configurable via `LOG_DIR`/`LOG_FILE_PREFIX`).
+
+Watch for:
+
+- repeated `order creation failed`
+- frequent stale-order cancellations
+- high `sumAvg` drift near `TRADE_MAX_SUM_AVG`
+- low available USDC warnings / drawdown stop messages
+
+---
+
+## Risk Disclosure
+
+This software is for research/automation purposes only.  
+Trading prediction markets carries market, execution, technical, and operational risk.  
+Use only capital you can afford to lose, and monitor live behavior before scaling.

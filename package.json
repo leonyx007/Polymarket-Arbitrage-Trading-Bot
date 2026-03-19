@@ -1,6 +1,6 @@
 {
-  "name": "polymarket-copytrading",
-  "version": "1.0.0",
+  "name": "polymarket-arbitrage-trading-bot",
+  "version": "1.0.2",
   "main": "index.js",
   "scripts": {
     "start": "ts-node src/index.ts",
