@@ -35,6 +35,10 @@ The code includes controls to reduce these risks, but cannot remove them entirel
 
 ---
 
+
+## Demo video
+
+
 ## Core Trading Logic
 
 ### 1) 15-minute slug tracking

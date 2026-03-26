@@ -9,32 +9,25 @@ import { getContractConfig } from "@polymarket/clob-client";
 import { logger } from "../utils/logger";
 import { config } from "../config";
 
-// Minimal USDC ERC20 ABI
 const USDC_ABI = [
     "function approve(address spender, uint256 amount) external returns (bool)",
     "function allowance(address owner, address spender) external view returns (uint256)",
 ];
 
-// Minimal ERC1155 ABI for ConditionalTokens
 const CTF_ABI = [
     "function setApprovalForAll(address operator, bool approved) external",
     "function isApprovedForAll(address account, address operator) external view returns (bool)",
 ];
 
-/**
- * Get RPC provider URL based on chain ID
- */
 function getRpcUrlCandidates(chainId: number): string[] {
     const out: string[] = [];
 
-    // Highest priority: explicit override
     if (config.rpcUrl) out.push(config.rpcUrl);
 
     const rpcToken = config.rpcToken;
 
     if (chainId === 137) {
         if (rpcToken) out.push(`https://polygon-mainnet.g.alchemy.com/v2/${rpcToken}`);
-        // Public fallbacks (ordered)
         out.push(
             "https://polygon-rpc.com",
             "https://rpc.ankr.com/polygon",
@@ -83,17 +76,12 @@ async function getWorkingProvider(chainId: number): Promise<{ provider: JsonRpcP
     );
 }
 
-/**
- * Approve USDC to Polymarket contracts (maximum allowance)
- * Approves USDC for both ConditionalTokens and Exchange contracts
- */
 export async function approveUSDCAllowance(): Promise<void> {
     const privateKey = config.requirePrivateKey();
 
     const chainId = (config.chainId || Chain.POLYGON) as Chain;
     const contractConfig = getContractConfig(chainId);
     
-    // Get RPC URL and create provider
     const { provider, rpcUrl } = await getWorkingProvider(chainId);
     const wallet = new Wallet(privateKey, provider);
     
@@ -104,15 +92,13 @@ export async function approveUSDCAllowance(): Promise<void> {
     logger.info(`ConditionalTokens Contract: ${contractConfig.conditionalTokens}`);
     logger.info(`Exchange Contract: ${contractConfig.exchange}`);
 
-    // Create USDC contract instance
     const usdcContract = new Contract(contractConfig.collateral, USDC_ABI, wallet);
 
-    // Configure gas options
     let gasOptions: { gasPrice?: BigNumber; gasLimit?: number } = {};
     try {
         const gasPrice = await provider.getGasPrice();
         gasOptions = {
-            gasPrice: gasPrice.mul(120).div(100), // 20% buffer
+            gasPrice: gasPrice.mul(120).div(100),
             gasLimit: 200_000,
         };
     } catch (error) {
@@ -123,7 +109,6 @@ export async function approveUSDCAllowance(): Promise<void> {
         };
     }
 
-    // Check and approve USDC for ConditionalTokens contract
     const ctfAllowance = await usdcContract.allowance(address, contractConfig.conditionalTokens);
     if (!ctfAllowance.eq(MaxUint256)) {
         logger.info(`Current CTF allowance: ${ctfAllowance.toString()}, setting to MaxUint256...`);

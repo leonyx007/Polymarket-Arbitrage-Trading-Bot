@@ -9,7 +9,6 @@ let cachedClient: ClobClient | null = null;
 let cachedConfig: { chainId: number; host: string } | null = null;
 
 export async function getClobClient(): Promise<ClobClient> {
-    // Load credentials
     const credentialPath = resolve(process.cwd(), "src/data/credential.json");
     
     if (!existsSync(credentialPath)) {
@@ -21,28 +20,23 @@ export async function getClobClient(): Promise<ClobClient> {
     const chainId = (config.chainId || Chain.POLYGON) as Chain;
     const host = config.clobApiUrl;
 
-    // Return cached client if config hasn't changed
     if (cachedClient && cachedConfig && 
         cachedConfig.chainId === chainId && 
         cachedConfig.host === host) {
         return cachedClient;
     }
 
-    // Create wallet from private key
     const privateKey = config.requirePrivateKey();
     const wallet = new Wallet(privateKey);
 
-    // Convert base64url secret to standard base64 for clob-client compatibility
     const secretBase64 = creds.secret.replace(/-/g, '+').replace(/_/g, '/');
 
-    // Create API key credentials
     const apiKeyCreds: ApiKeyCreds = {
         key: creds.key,
         secret: secretBase64,
         passphrase: creds.passphrase,
     };
 
-    // Create and cache client
     cachedClient = new ClobClient(host, chainId, wallet, apiKeyCreds);
     cachedConfig = { chainId, host };
 
